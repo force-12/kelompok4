@@ -70,19 +70,30 @@ elif st.session_state.role == "mahasiswa":
         st.subheader("1. Dapatkan Lokasi GPS Anda")
         st.warning("Pastikan Anda memberikan izin akses lokasi pada browser saat diminta. Jika lokasi tidak muncul, coba refresh halaman.")
         
-        # Komponen Geolocation
         location_data = streamlit_geolocation()
 
-        # Menampilkan feedback lokasi kepada pengguna
-        if location_data and 'latitude' in location_data:
-            st.success(f"Lokasi berhasil dideteksi!")
-            lat, lon = location_data['latitude'], location_data['longitude']
+        # --- PERBAIKAN DIMULAI DI SINI ---
+        if location_data and 'latitude' in location_data and 'longitude' in location_data:
+            st.success("Lokasi berhasil dideteksi!")
             
-            # Membuat DataFrame untuk peta
-            map_df = pd.DataFrame({'lat': [lat], 'lon': [lon]})
-            st.map(map_df, zoom=15)
+            # 1. Buat DataFrame dengan nama kolom yang unik
+            map_df = pd.DataFrame({
+                'lat_col': [location_data['latitude']],
+                'lon_col': [location_data['longitude']]
+            })
+            
+            # 2. Secara eksplisit beritahu st.map nama kolomnya
+            st.map(
+                map_df,
+                latitude='lat_col',
+                longitude='lon_col',
+                zoom=15
+            )
         else:
-            st.info("Menunggu data lokasi... Silakan klik 'Get Location' di atas dan izinkan akses.")
+            st.info("Menunggu data lokasi... Klik 'Get Location' di atas dan izinkan akses di browser Anda.")
+            # Tampilkan peta default Indonesia agar tidak kosong
+            st.map(pd.DataFrame({'lat': [-2.5489], 'lon': [118.0149]}), zoom=4)
+        # --- PERBAIKAN SELESAI ---
 
         st.markdown("---")
         st.subheader("2. Ambil Foto")
@@ -106,7 +117,6 @@ elif st.session_state.role == "mahasiswa":
                         timestamp = get_current_datetime()
                         current_time = get_current_time()
                         
-                        # Status selalu "Masuk", hanya cek keterlambatan
                         status = "Masuk"
                         late_status = determine_late_status(current_time, jam_masuk)
 
@@ -117,7 +127,7 @@ elif st.session_state.role == "mahasiswa":
                             st.success(f"✅ Absensi berhasil! Status: {late_status}")
                             st.image(photo_url, caption="Foto berhasil diunggah", width=300)
 
-    # ... Kode menu lain tidak banyak berubah, disesuaikan dengan penghapusan jam pulang
+    # ... Kode menu lain tidak ada perubahan ...
     elif menu == "🏠 Dashboard":
         st.title("📊 Dashboard Mahasiswa")
         current_time_str, current_date_str = get_current_time(), datetime.datetime.now().strftime("%A, %d %B %Y")
@@ -145,7 +155,7 @@ elif st.session_state.role == "mahasiswa":
     elif menu == "🚪 Logout":
         st.session_state.role = None; st.rerun()
 
-# ---------- Halaman Admin ----------
+# ---------- Halaman Admin (Tidak ada perubahan) ----------
 elif st.session_state.role == "admin":
     st.sidebar.title("👨‍💼 Admin Panel")
     menu = st.sidebar.radio("Menu", ["📊 Data Absensi", "👥 Kelola Mahasiswa", "⏰ Pengaturan Jam", "🚪 Logout"])
@@ -160,7 +170,6 @@ elif st.session_state.role == "admin":
                 if db.update_jam_settings(new_jam_masuk.strftime("%H:%M:%S")):
                     st.success("Pengaturan jam berhasil disimpan.")
     
-    # ... Kode menu lain disesuaikan
     elif menu == "📊 Data Absensi":
         st.title("📊 Data Absensi Lengkap")
         df = db.fetch_all_records()
@@ -171,7 +180,6 @@ elif st.session_state.role == "admin":
 
     elif menu == "👥 Kelola Mahasiswa":
         st.title("👥 Kelola Data Mahasiswa")
-        # ... (Tidak ada perubahan signifikan)
         tab1, tab2 = st.tabs(["📋 Daftar Mahasiswa", "➕ Tambah Mahasiswa"])
         with tab1:
             df_mhs = db.get_all_mahasiswa()

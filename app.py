@@ -70,24 +70,39 @@ elif st.session_state.role == "mahasiswa":
         st.subheader("1. Dapatkan Lokasi GPS Anda")
         st.warning("Pastikan Anda memberikan izin akses lokasi pada browser saat diminta. Jika lokasi tidak muncul, coba refresh halaman.")
         
+        # Debug info (bisa dihapus nanti)
+        with st.expander("🔍 Debug Info (Klik untuk lihat)"):
+            st.write("Data lokasi:", location_data)
+        
         location_data = streamlit_geolocation()
 
-        # --- PERBAIKAN: Gunakan nama kolom default Streamlit ---
-        if location_data and 'latitude' in location_data and 'longitude' in location_data:
-            st.success("✅ Lokasi berhasil dideteksi!")
+        # --- PERBAIKAN: Validasi ketat dan error handling ---
+        if location_data and isinstance(location_data, dict) and 'latitude' in location_data and 'longitude' in location_data:
+            lat_value = location_data['latitude']
+            lon_value = location_data['longitude']
             
-            # Gunakan nama kolom 'lat' dan 'lon' (default Streamlit)
-            map_df = pd.DataFrame({
-                'lat': [location_data['latitude']],
-                'lon': [location_data['longitude']]
-            })
-            
-            # Streamlit akan otomatis mengenali kolom 'lat' dan 'lon'
-            st.map(map_df, zoom=15)
+            # Validasi nilai numerik
+            if lat_value is not None and lon_value is not None and isinstance(lat_value, (int, float)) and isinstance(lon_value, (int, float)):
+                st.success(f"✅ Lokasi berhasil dideteksi! ({lat_value:.6f}, {lon_value:.6f})")
+                
+                try:
+                    # Gunakan nama kolom 'lat' dan 'lon' (default Streamlit)
+                    map_df = pd.DataFrame({
+                        'lat': [float(lat_value)],
+                        'lon': [float(lon_value)]
+                    })
+                    
+                    # Pastikan DataFrame tidak kosong dan memiliki data valid
+                    if not map_df.empty and map_df['lat'].notna().all() and map_df['lon'].notna().all():
+                        st.map(map_df, zoom=15)
+                    else:
+                        st.warning("⚠️ Data lokasi tidak valid untuk ditampilkan di peta.")
+                except Exception as e:
+                    st.error(f"❌ Gagal menampilkan peta: {str(e)}")
+            else:
+                st.warning("⚠️ Data lokasi tidak valid. Silakan coba lagi.")
         else:
             st.info("⏳ Menunggu data lokasi... Klik tombol di atas dan izinkan akses lokasi di browser Anda.")
-            # Tampilkan peta default Indonesia
-            st.map(pd.DataFrame({'lat': [-2.5489], 'lon': [118.0149]}), zoom=4)
         # --- AKHIR PERBAIKAN ---
 
         st.markdown("---")
@@ -96,8 +111,11 @@ elif st.session_state.role == "mahasiswa":
 
         st.markdown("---")
         if st.button("✅ Absen Sekarang", type="primary", use_container_width=True):
-            if not location_data or 'latitude' not in location_data:
+            # Validasi lokasi lebih ketat
+            if not location_data or not isinstance(location_data, dict) or 'latitude' not in location_data or 'longitude' not in location_data:
                 st.error("❌ Lokasi GPS tidak ditemukan. Pastikan Anda sudah memberikan izin akses lokasi.")
+            elif location_data['latitude'] is None or location_data['longitude'] is None:
+                st.error("❌ Data lokasi tidak valid. Silakan refresh halaman dan coba lagi.")
             elif not photo_buffer:
                 st.error("❌ Ambil foto terlebih dahulu.")
             else:

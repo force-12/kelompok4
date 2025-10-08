@@ -1,7 +1,4 @@
 streamlit
 pandas
-mysql-connector-python
-psycopg2-binary
 supabase
 python-dotenv
-streamlit-geolocation

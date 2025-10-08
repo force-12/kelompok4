@@ -70,11 +70,11 @@ elif st.session_state.role == "mahasiswa":
         st.subheader("1. Dapatkan Lokasi GPS Anda")
         st.warning("Pastikan Anda memberikan izin akses lokasi pada browser saat diminta. Jika lokasi tidak muncul, coba refresh halaman.")
         
-        # Debug info (bisa dihapus nanti)
+        location_data = streamlit_geolocation()
+        
+        # Debug info (bisa dihapus nanti setelah app stabil)
         with st.expander("🔍 Debug Info (Klik untuk lihat)"):
             st.write("Data lokasi:", location_data)
-        
-        location_data = streamlit_geolocation()
 
         # --- PERBAIKAN: Validasi ketat dan error handling ---
         if location_data and isinstance(location_data, dict) and 'latitude' in location_data and 'longitude' in location_data:

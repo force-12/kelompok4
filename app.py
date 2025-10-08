@@ -23,7 +23,7 @@ st.set_page_config(page_title="Sistem Absensi Mahasiswa", layout="wide")
 if "role" not in st.session_state: st.session_state.role = None
 if "user_info" not in st.session_state: st.session_state.user_info = {}
 
-# ---------- Halaman Login (Tidak Berubah) ----------
+# ---------- Halaman Login ----------
 if st.session_state.role is None:
     st.markdown("""
     <div style="text-align: center; padding: 40px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; margin-bottom: 30px; color: white;">
@@ -72,26 +72,21 @@ elif st.session_state.role == "mahasiswa":
         
         location_data = streamlit_geolocation()
 
-        # --- PERBAIKAN EKSPLISIT UNTUK PETA ---
+        # --- PERBAIKAN: Gunakan nama kolom default Streamlit ---
         if location_data and 'latitude' in location_data and 'longitude' in location_data:
-            st.success("Lokasi berhasil dideteksi!")
+            st.success("✅ Lokasi berhasil dideteksi!")
             
-            # Buat DataFrame dengan nama kolom yang unik dan jelas
+            # Gunakan nama kolom 'lat' dan 'lon' (default Streamlit)
             map_df = pd.DataFrame({
-                'latitude_column': [location_data['latitude']],
-                'longitude_column': [location_data['longitude']]
+                'lat': [location_data['latitude']],
+                'lon': [location_data['longitude']]
             })
             
-            # Secara eksplisit beritahu st.map nama kolom yang harus digunakan
-            st.map(
-                map_df,
-                latitude='latitude_column',
-                longitude='longitude_column',
-                zoom=15
-            )
+            # Streamlit akan otomatis mengenali kolom 'lat' dan 'lon'
+            st.map(map_df, zoom=15)
         else:
-            st.info("Menunggu data lokasi... Klik 'Get Location' di atas dan izinkan akses di browser Anda.")
-            # Tampilkan peta default Indonesia agar tidak kosong
+            st.info("⏳ Menunggu data lokasi... Klik tombol di atas dan izinkan akses lokasi di browser Anda.")
+            # Tampilkan peta default Indonesia
             st.map(pd.DataFrame({'lat': [-2.5489], 'lon': [118.0149]}), zoom=4)
         # --- AKHIR PERBAIKAN ---
 
@@ -102,11 +97,11 @@ elif st.session_state.role == "mahasiswa":
         st.markdown("---")
         if st.button("✅ Absen Sekarang", type="primary", use_container_width=True):
             if not location_data or 'latitude' not in location_data:
-                st.error("Lokasi GPS tidak ditemukan. Pastikan Anda sudah memberikan izin akses lokasi.")
+                st.error("❌ Lokasi GPS tidak ditemukan. Pastikan Anda sudah memberikan izin akses lokasi.")
             elif not photo_buffer:
-                st.error("Ambil foto terlebih dahulu.")
+                st.error("❌ Ambil foto terlebih dahulu.")
             else:
-                with st.spinner("Mengunggah foto dan menyimpan data..."):
+                with st.spinner("⏳ Mengunggah foto dan menyimpan data..."):
                     lat, lon = location_data['latitude'], location_data['longitude']
                     file_name = f"{user_info['nim']}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                     
@@ -126,8 +121,8 @@ elif st.session_state.role == "mahasiswa":
                         if success:
                             st.success(f"✅ Absensi berhasil! Status: {late_status}")
                             st.image(photo_url, caption="Foto berhasil diunggah", width=300)
+                            st.balloons()
 
-    # ... Kode menu lain tidak ada perubahan ...
     elif menu == "🏠 Dashboard":
         st.title("📊 Dashboard Mahasiswa")
         current_time_str, current_date_str = get_current_time(), datetime.datetime.now().strftime("%A, %d %B %Y")
@@ -147,15 +142,29 @@ elif st.session_state.role == "mahasiswa":
             df_user = df_all[df_all['nim'] == user_info['nim']]
             if not df_user.empty:
                 df_display = df_user[['timestamp', 'status', 'late_status', 'latitude', 'longitude']].copy()
-                df_display['Lokasi (Google Maps)'] = df_display.apply(lambda r: f"https://www.google.com/maps?q={r['latitude']},{r['longitude']}", axis=1)
-                st.dataframe(df_display[['timestamp', 'status', 'late_status', 'Lokasi (Google Maps)']], column_config={"Lokasi (Google Maps)": st.column_config.LinkColumn(display_text="Buka Peta 🗺️")}, use_container_width=True)
-            else: st.info("Belum ada riwayat absensi.")
-        else: st.info("Belum ada riwayat absensi.")
+                df_display['Lokasi (Google Maps)'] = df_display.apply(
+                    lambda r: f"https://www.google.com/maps?q={r['latitude']},{r['longitude']}" 
+                    if pd.notnull(r['latitude']) and pd.notnull(r['longitude']) else "N/A", 
+                    axis=1
+                )
+                st.dataframe(
+                    df_display[['timestamp', 'status', 'late_status', 'Lokasi (Google Maps)']], 
+                    column_config={
+                        "Lokasi (Google Maps)": st.column_config.LinkColumn(display_text="Buka Peta 🗺️")
+                    }, 
+                    use_container_width=True
+                )
+            else: 
+                st.info("📭 Belum ada riwayat absensi.")
+        else: 
+            st.info("📭 Belum ada riwayat absensi.")
 
     elif menu == "🚪 Logout":
-        st.session_state.role = None; st.rerun()
+        st.session_state.role = None
+        st.session_state.user_info = {}
+        st.rerun()
 
-# ---------- Halaman Admin (Tidak ada perubahan) ----------
+# ---------- Halaman Admin ----------
 elif st.session_state.role == "admin":
     st.sidebar.title("👨‍💼 Admin Panel")
     menu = st.sidebar.radio("Menu", ["📊 Data Absensi", "👥 Kelola Mahasiswa", "⏰ Pengaturan Jam", "🚪 Logout"])
@@ -168,15 +177,27 @@ elif st.session_state.role == "admin":
             new_jam_masuk = st.time_input("Batas Jam Masuk", value=jam_masuk_val)
             if st.form_submit_button("💾 Simpan", type="primary"):
                 if db.update_jam_settings(new_jam_masuk.strftime("%H:%M:%S")):
-                    st.success("Pengaturan jam berhasil disimpan.")
+                    st.success("✅ Pengaturan jam berhasil disimpan.")
+                    st.rerun()
     
     elif menu == "📊 Data Absensi":
         st.title("📊 Data Absensi Lengkap")
         df = db.fetch_all_records()
         if not df.empty:
-            df['Lokasi'] = df.apply(lambda r: f"https://www.google.com/maps?q={r['latitude']},{r['longitude']}" if pd.notnull(r['latitude']) else "N/A", axis=1)
-            st.dataframe(df, column_config={"Lokasi": st.column_config.LinkColumn(display_text="Buka Peta 🗺️")}, use_container_width=True)
-        else: st.info("Belum ada data absensi.")
+            df['Lokasi'] = df.apply(
+                lambda r: f"https://www.google.com/maps?q={r['latitude']},{r['longitude']}" 
+                if pd.notnull(r['latitude']) and pd.notnull(r['longitude']) else "N/A", 
+                axis=1
+            )
+            st.dataframe(
+                df, 
+                column_config={
+                    "Lokasi": st.column_config.LinkColumn(display_text="Buka Peta 🗺️")
+                }, 
+                use_container_width=True
+            )
+        else: 
+            st.info("📭 Belum ada data absensi.")
 
     elif menu == "👥 Kelola Mahasiswa":
         st.title("👥 Kelola Data Mahasiswa")
@@ -187,14 +208,24 @@ elif st.session_state.role == "admin":
             if not df_mhs.empty:
                 nim_del = st.selectbox("Pilih NIM untuk dihapus", options=df_mhs["nim"].unique())
                 if st.button("🗑️ Hapus Mahasiswa", type="secondary"):
-                    if db.delete_mahasiswa(nim_del): st.rerun()
+                    if db.delete_mahasiswa(nim_del): 
+                        st.success("✅ Mahasiswa berhasil dihapus.")
+                        st.rerun()
         with tab2:
             with st.form("add_mahasiswa"):
-                nim, nama, jurusan = st.text_input("NIM"), st.text_input("Nama"), st.text_input("Jurusan")
+                nim = st.text_input("NIM")
+                nama = st.text_input("Nama")
+                jurusan = st.text_input("Jurusan")
                 password = st.text_input("Password", type="password")
                 if st.form_submit_button("➕ Tambah"):
-                    if db.add_mahasiswa(nim, nama, jurusan, password): st.success("Mahasiswa ditambahkan.")
+                    if all([nim, nama, jurusan, password]):
+                        if db.add_mahasiswa(nim, nama, jurusan, password): 
+                            st.success("✅ Mahasiswa berhasil ditambahkan.")
+                            st.rerun()
+                    else:
+                        st.error("❌ Semua field harus diisi.")
     
     elif menu == "🚪 Logout":
-        st.session_state.role = None; st.rerun()
-
+        st.session_state.role = None
+        st.session_state.user_info = {}
+        st.rerun()

@@ -72,28 +72,28 @@ elif st.session_state.role == "mahasiswa":
         
         location_data = streamlit_geolocation()
 
-        # --- PERBAIKAN DIMULAI DI SINI ---
+        # --- PERBAIKAN EKSPLISIT UNTUK PETA ---
         if location_data and 'latitude' in location_data and 'longitude' in location_data:
             st.success("Lokasi berhasil dideteksi!")
             
-            # 1. Buat DataFrame dengan nama kolom yang unik
+            # Buat DataFrame dengan nama kolom yang unik dan jelas
             map_df = pd.DataFrame({
-                'lat_col': [location_data['latitude']],
-                'lon_col': [location_data['longitude']]
+                'latitude_column': [location_data['latitude']],
+                'longitude_column': [location_data['longitude']]
             })
             
-            # 2. Secara eksplisit beritahu st.map nama kolomnya
+            # Secara eksplisit beritahu st.map nama kolom yang harus digunakan
             st.map(
                 map_df,
-                latitude='lat_col',
-                longitude='lon_col',
+                latitude='latitude_column',
+                longitude='longitude_column',
                 zoom=15
             )
         else:
             st.info("Menunggu data lokasi... Klik 'Get Location' di atas dan izinkan akses di browser Anda.")
             # Tampilkan peta default Indonesia agar tidak kosong
             st.map(pd.DataFrame({'lat': [-2.5489], 'lon': [118.0149]}), zoom=4)
-        # --- PERBAIKAN SELESAI ---
+        # --- AKHIR PERBAIKAN ---
 
         st.markdown("---")
         st.subheader("2. Ambil Foto")

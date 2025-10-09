@@ -4,7 +4,6 @@ import datetime
 import pandas as pd
 import db
 import streamlit.components.v1 as components
-from streamlit_geolocation import streamlit_geolocation  # ✅ tambahkan ini
 
 
 # ---------- Utilities ----------

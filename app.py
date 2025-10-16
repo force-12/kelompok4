@@ -3,8 +3,6 @@ import uuid
 import datetime
 import pandas as pd
 import db
-import streamlit.components.v1 as components
-from geolocation import get_geolocation  # Import komponen GPS
 
 
 # ---------- Utilities ----------
@@ -29,7 +27,7 @@ if "user_info" not in st.session_state: st.session_state.user_info = {}
 if st.session_state.role is None:
     st.markdown("""
     <div style="text-align: center; padding: 40px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; margin-bottom: 30px; color: white;">
-        <h1 style="margin: 0; font-size: 2.5em; font-weight: bold;">🎓 Sistem Absensi Mahasiswa (GPS)</h1>
+        <h1 style="margin: 0; font-size: 2.5em; font-weight: bold;">🎓 Sistem Absensi Mahasiswa</h1>
         <p style="margin: 10px 0 0 0; font-size: 1.2em;">Digital Attendance Management System</p>
     </div>
     """, unsafe_allow_html=True)
@@ -64,84 +62,20 @@ elif st.session_state.role == "mahasiswa":
     menu = st.sidebar.radio("Menu", ["🏠 Dashboard", "📸 Absensi", "📊 Riwayat Absensi", "🚪 Logout"])
 
     if menu == "📸 Absensi":
-        st.title("📸 Absensi Foto & Lokasi")
+        st.title("📸 Absensi Foto")
         jam_masuk = db.get_jam_settings()
         st.info(f"⏰ **Batas Jam Masuk:** {jam_masuk}")
         
         st.markdown("---")
-        st.subheader("1. Dapatkan Lokasi GPS Anda")
-        st.warning("⚠️ Pastikan Anda memberikan izin akses lokasi pada browser saat diminta.")
-        
-        # Tombol untuk mendapatkan lokasi
-        if st.button("📍 Dapatkan Lokasi Saya", type="primary"):
-            st.session_state.request_location = True
-        
-        # Ambil lokasi jika tombol diklik
-        location_data = None
-        if st.session_state.get('request_location', False):
-            location_data = get_geolocation()
-        
-        # Debug info
-        with st.expander("🔍 Debug Info (Klik untuk lihat)"):
-            st.write("Data lokasi:", location_data)
-
-        # Validasi dan tampilkan lokasi
-        if location_data and isinstance(location_data, dict):
-            if 'error' in location_data:
-                st.error(f"❌ {location_data['error']}")
-                st.session_state.location_coords = None
-            elif 'latitude' in location_data and 'longitude' in location_data:
-                lat_value = location_data['latitude']
-                lon_value = location_data['longitude']
-                
-                if lat_value is not None and lon_value is not None:
-                    # Simpan koordinat ke session state
-                    st.session_state.location_coords = {
-                        'latitude': float(lat_value),
-                        'longitude': float(lon_value)
-                    }
-                    
-                    st.success(f"✅ Lokasi berhasil dideteksi! ({lat_value:.6f}, {lon_value:.6f})")
-                    
-                    try:
-                        map_df = pd.DataFrame({
-                            'lat': [float(lat_value)],
-                            'lon': [float(lon_value)]
-                        })
-                        
-                        if not map_df.empty:
-                            st.map(map_df, zoom=15)
-                    except Exception as e:
-                        st.error(f"❌ Gagal menampilkan peta: {str(e)}")
-        elif st.session_state.get('location_coords'):
-            # Tampilkan lokasi yang sudah tersimpan
-            coords = st.session_state.location_coords
-            st.success(f"✅ Lokasi tersimpan: ({coords['latitude']:.6f}, {coords['longitude']:.6f})")
-            
-            try:
-                map_df = pd.DataFrame({
-                    'lat': [coords['latitude']],
-                    'lon': [coords['longitude']]
-                })
-                st.map(map_df, zoom=15)
-            except Exception as e:
-                st.error(f"❌ Gagal menampilkan peta: {str(e)}")
-
-        st.markdown("---")
-        st.subheader("2. Ambil Foto")
+        st.subheader("Ambil Foto Wajah Anda")
         photo_buffer = st.camera_input("Arahkan wajah ke kamera")
 
         st.markdown("---")
         if st.button("✅ Absen Sekarang", type="primary", use_container_width=True):
-            # Validasi lokasi
-            if not st.session_state.get('location_coords'):
-                st.error("❌ Lokasi GPS belum diambil. Klik tombol 'Dapatkan Lokasi Saya' terlebih dahulu.")
-            elif not photo_buffer:
+            if not photo_buffer:
                 st.error("❌ Ambil foto terlebih dahulu.")
             else:
                 with st.spinner("⏳ Mengunggah foto dan menyimpan data..."):
-                    coords = st.session_state.location_coords
-                    lat, lon = coords['latitude'], coords['longitude']
                     file_name = f"{user_info['nim']}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                     
                     photo_url = db.upload_photo(photo_buffer.getvalue(), file_name)
@@ -156,14 +90,11 @@ elif st.session_state.role == "mahasiswa":
 
                         success = db.insert_record(record_id, user_info['nim'], user_info['nama'], 
                                                    user_info['jurusan'], timestamp, photo_url, status, 
-                                                   late_status, lat, lon)
+                                                   late_status)
                         if success:
                             st.success(f"✅ Absensi berhasil! Status: {late_status}")
                             st.image(photo_url, caption="Foto berhasil diunggah", width=300)
                             st.balloons()
-                            # Reset lokasi setelah absen sukses
-                            st.session_state.location_coords = None
-                            st.session_state.request_location = False
 
     elif menu == "🏠 Dashboard":
         st.title("📊 Dashboard Mahasiswa")
@@ -183,25 +114,16 @@ elif st.session_state.role == "mahasiswa":
         if not df_all.empty and 'nim' in df_all.columns:
             df_user = df_all[df_all['nim'] == user_info['nim']]
             if not df_user.empty:
-                # Tambahkan kolom Google Maps link
-                df_display = df_user[['timestamp', 'status', 'late_status', 'latitude', 'longitude']].copy()
-                df_display['Google Maps'] = df_display.apply(
-                    lambda r: f"https://www.google.com/maps?q={r['latitude']},{r['longitude']}" 
-                    if pd.notnull(r['latitude']) and pd.notnull(r['longitude']) else "N/A", 
-                    axis=1
-                )
+                # Tampilkan dataframe
+                df_display = df_user[['timestamp', 'status', 'late_status', 'photo_path']].copy()
                 
-                # Tampilkan dataframe dengan link
                 st.dataframe(
-                    df_display[['timestamp', 'status', 'late_status', 'Google Maps']], 
+                    df_display, 
                     column_config={
                         "timestamp": "Waktu Absensi",
                         "status": "Status",
                         "late_status": "Keterlambatan",
-                        "Google Maps": st.column_config.LinkColumn(
-                            "Lokasi 🗺️",
-                            display_text="Buka di Maps"
-                        )
+                        "photo_path": st.column_config.ImageColumn("Foto", width="small")
                     }, 
                     use_container_width=True,
                     hide_index=True
@@ -248,15 +170,10 @@ elif st.session_state.role == "admin":
         st.title("📊 Data Absensi Lengkap")
         df = db.fetch_all_records()
         if not df.empty:
-            df['Lokasi'] = df.apply(
-                lambda r: f"https://www.google.com/maps?q={r['latitude']},{r['longitude']}" 
-                if pd.notnull(r['latitude']) and pd.notnull(r['longitude']) else "N/A", 
-                axis=1
-            )
             st.dataframe(
                 df, 
                 column_config={
-                    "Lokasi": st.column_config.LinkColumn(display_text="Buka Peta 🗺️")
+                    "photo_path": st.column_config.ImageColumn("Foto", width="small")
                 }, 
                 use_container_width=True
             )
